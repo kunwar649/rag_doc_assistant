@@ -8,3 +8,4 @@ __pycache__/
 data/chroma/
 data/docs/*
 !data/docs/.gitkeep
+data/eval_questions.md
