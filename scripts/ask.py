@@ -46,7 +46,9 @@ def run_turn(pipeline: RAGPipeline, question: str, history: list[dict], args) ->
                     print("      " + s["text"][:600].replace("\n", "\n      "))
             if sources:
                 print("  * = cited in the answer")
-            print(f"  {event['provider'] or 'no LLM call'} | {event['latency_ms']} ms")
+            usage = event.get("usage")
+            tokens = f" | {usage['input']} in / {usage['output']} out tokens" if usage else ""
+            print(f"  {event['provider'] or 'no LLM call'} | {event['latency_ms']} ms{tokens}")
     return "".join(parts)
 
 
@@ -65,6 +67,15 @@ def main() -> None:
     if pipeline.retriever.store.count() == 0:
         sys.exit("Collection is empty. Run: python scripts/ingest.py")
 
+    if pipeline.tracer.enabled:
+        print("Langfuse tracing on.")
+    try:
+        chat(pipeline, args)
+    finally:
+        pipeline.tracer.flush()  # traces are sent in the background; flush before the process exits
+
+
+def chat(pipeline: RAGPipeline, args) -> None:
     if args.question:
         run_turn(pipeline, args.question, [], args)
         return

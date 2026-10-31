@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     history_turns: int = 4  # previous question/answer pairs used for follow-ups
     max_upload_mb: int = 20
 
+    # Day 5: optional Langfuse tracing (leave keys empty to disable).
+    # EU cloud: https://cloud.langfuse.com   US cloud: https://us.cloud.langfuse.com
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+
 
 @lru_cache
 def get_settings() -> Settings:

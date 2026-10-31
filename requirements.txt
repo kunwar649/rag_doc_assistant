@@ -16,6 +16,10 @@ fastapi>=0.110
 uvicorn>=0.29
 python-multipart>=0.0.9
 
+# Day 5: chat UI and optional tracing
+streamlit>=1.38
+langfuse>=3.3
+
 # Dev
 pytest>=8.0
 ruff>=0.5

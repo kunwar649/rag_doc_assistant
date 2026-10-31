@@ -25,6 +25,25 @@ class LLMUnavailableError(RuntimeError):
     """Every configured provider failed."""
 
 
+def _get(obj, key):
+    return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+
+def _usage(raw) -> dict | None:
+    """Normalize an OpenAI-style usage object/dict to {"input": n, "output": n}."""
+    if not raw:
+        return None
+    prompt, completion = _get(raw, "prompt_tokens"), _get(raw, "completion_tokens")
+    if prompt is None and completion is None:
+        return None
+    return {"input": int(prompt or 0), "output": int(completion or 0)}
+
+
+def _chunk_usage(chunk) -> dict | None:
+    # OpenAI-style streams may put usage on the final chunk; Groq sends it under "x_groq".
+    return _usage(getattr(chunk, "usage", None)) or _usage(_get(getattr(chunk, "x_groq", None) or {}, "usage"))
+
+
 @dataclass
 class Provider:
     name: str
@@ -43,6 +62,11 @@ class LLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.last_provider: str | None = None
+        self.last_usage: dict | None = None  # {"input": prompt tokens, "output": completion tokens}
+
+    @property
+    def default_model(self) -> str:
+        return self.providers[0].model
 
     @classmethod
     def from_settings(cls, s: Settings) -> "LLMClient":
@@ -74,10 +98,12 @@ class LLMClient:
 
     def complete(self, messages: list[dict]) -> str:
         errors = []
+        self.last_usage = None
         for p in self.providers:
             try:
                 resp = self._request(p, messages, stream=False)
                 self.last_provider = f"{p.name}:{p.model}"
+                self.last_usage = _usage(getattr(resp, "usage", None))
                 return (resp.choices[0].message.content or "").strip()
             except OpenAIError as e:
                 logger.warning("%s (%s) failed: %s", p.name, p.model, e)
@@ -86,10 +112,14 @@ class LLMClient:
 
     def stream(self, messages: list[dict]) -> Iterator[str]:
         errors = []
+        self.last_usage = None
         for p in self.providers:
             started = False
             try:
                 for chunk in self._request(p, messages, stream=True):
+                    usage = _chunk_usage(chunk)
+                    if usage:
+                        self.last_usage = usage
                     if not chunk.choices:
                         continue
                     text = chunk.choices[0].delta.content  # None for reasoning/role-only chunks

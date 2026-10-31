@@ -1,0 +1,12 @@
+# Streamlit settings for this project (read automatically by `streamlit run app.py`).
+
+[server]
+# Match MAX_UPLOAD_MB in config.py so the uploader shows the real limit.
+maxUploadSize = 20
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Hide the developer toolbar ("Deploy" button etc.) for visitors.
+toolbarMode = "viewer"

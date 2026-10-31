@@ -58,6 +58,7 @@ class AskResponse(BaseModel):
     cited: list[int]
     provider: str | None
     latency_ms: int
+    usage: dict | None = None
 
 
 def _sse(event: dict) -> str:
