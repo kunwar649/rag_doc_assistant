@@ -23,8 +23,18 @@ class Settings(BaseSettings):
     rrf_k: int = 60  # RRF damping constant
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
+    # Day 4: answer generation. Providers are tried in order; any with an empty key is skipped.
+    # Free-tier model lineups change often: if you get "model not found / decommissioned",
+    # check console.groq.com/docs/models or ai.google.dev and update the model name in .env.
     groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
     google_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    llm_temperature: float = 0.1  # low = stick closely to the sources
+    llm_max_tokens: int = 2048  # reasoning models count their thinking tokens here too
+    llm_timeout: float = 60.0
+    history_turns: int = 4  # previous question/answer pairs used for follow-ups
+    max_upload_mb: int = 20
 
 
 @lru_cache

@@ -4,6 +4,8 @@ Each loader keeps source metadata (file name, page) so answers can cite where
 they came from later.
 """
 import logging
+import re
+from collections import Counter
 from pathlib import Path
 
 from docx import Document as DocxDocument
@@ -22,6 +24,51 @@ def _clean(text: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def _line_key(line: str) -> str:
+    # "Page 7" and "Page 8" should count as the same running footer.
+    return re.sub(r"\d+", "#", line.lower()).strip()
+
+
+def strip_running_headers(pages: list[Page], edge_lines: int = 2, min_ratio: float = 0.5) -> list[Page]:
+    """Remove headers/footers repeated at the top or bottom of most pages.
+
+    Lines like "Tennessee License Validation Adapter | Technical Walkthrough"
+    and "Page 7" otherwise end up in every chunk: they add no information and
+    make unrelated chunks look similar to each other.
+    Only the first/last `edge_lines` of each page are considered, so the same
+    sentence appearing in the body is never removed.
+    """
+    if len(pages) < 3:  # too few pages to tell a header from content
+        return pages
+
+    def edge(n_lines: int) -> int:
+        # On short pages the top and bottom windows would overlap the body; shrink them.
+        return min(edge_lines, n_lines // 3)
+
+    counts: Counter[str] = Counter()
+    for p in pages:
+        lines = p.text.splitlines()
+        e = edge(len(lines))
+        if e:
+            counts.update({_line_key(line) for line in lines[:e] + lines[-e:]})
+    repeated = {k for k, c in counts.items() if k and c / len(pages) >= min_ratio}
+    if not repeated:
+        return pages
+
+    cleaned = []
+    for p in pages:
+        lines = p.text.splitlines()
+        n, e = len(lines), edge(len(lines))
+        kept = [
+            line
+            for i, line in enumerate(lines)
+            if not ((i < e or i >= n - e) and _line_key(line) in repeated)
+        ]
+        # Never drop a page entirely because of this heuristic.
+        cleaned.append(Page(text="\n".join(kept), source=p.source, page=p.page) if kept else p)
+    return cleaned
+
+
 def load_pdf(path: Path) -> list[Page]:
     reader = PdfReader(str(path))
     pages = []
@@ -31,7 +78,7 @@ def load_pdf(path: Path) -> list[Page]:
             pages.append(Page(text=text, source=path.name, page=i))
     if not pages:
         logger.warning("No extractable text in %s (scanned PDF? needs OCR)", path.name)
-    return pages
+    return strip_running_headers(pages)
 
 
 def load_docx(path: Path) -> list[Page]:

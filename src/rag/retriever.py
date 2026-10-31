@@ -24,6 +24,10 @@ class Retriever:
         self.bm25 = BM25Index(self.store.all_chunks())
         self._reranker = None  # loaded only when rerank mode is used
 
+    def refresh(self) -> None:
+        """Rebuild the keyword index after documents are added or removed."""
+        self.bm25 = BM25Index(self.store.all_chunks())
+
     def _vector(self, query: str, k: int, source: str | None) -> list[SearchResult]:
         where = {"source": source} if source else None
         return self.store.search(self.embedder.embed_query(query), top_k=k, where=where)

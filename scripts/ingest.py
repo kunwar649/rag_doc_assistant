@@ -1,4 +1,4 @@
-"""Day 1-2: load -> chunk -> embed -> store.
+"""Load -> chunk -> embed -> store.
 
 Usage:
     python scripts/ingest.py               # ingest everything in DOCS_DIR
@@ -12,10 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from rag.chunking import chunk_pages
 from rag.config import get_settings
-from rag.embeddings import get_embedder
-from rag.loaders import load_directory
+from rag.ingestion import find_documents, ingest_paths
 from rag.vector_store import VectorStore
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
@@ -32,29 +30,25 @@ def main() -> None:
     docs_dir = args.docs_dir or s.docs_dir
     t0 = time.perf_counter()
 
-    pages = load_directory(docs_dir)
-    if not pages:
+    paths = find_documents(docs_dir)
+    if not paths:
         log.error("No documents found in %s. Add PDF/DOCX/TXT/MD files and retry.", docs_dir)
         sys.exit(1)
-
-    chunks = chunk_pages(pages, s.chunk_size, s.chunk_overlap)
-    log.info("%d pages -> %d chunks (size=%d, overlap=%d)", len(pages), len(chunks), s.chunk_size, s.chunk_overlap)
 
     store = VectorStore(s.chroma_dir, s.collection_name)
     if args.reset:
         store.client.delete_collection(s.collection_name)
         store = VectorStore(s.chroma_dir, s.collection_name)
         log.info("Collection reset")
-    else:
-        # Re-ingesting a file: clear its old chunks so edited docs don't leave stale text behind.
-        for source in sorted({c.metadata["source"] for c in chunks}):
-            store.delete_source(source)
 
     log.info("Embedding with %s (first run downloads the model)...", s.embedding_model)
-    embedder = get_embedder(s.embedding_model)
-    embeddings = embedder.embed_documents([c.text for c in chunks])
-
-    store.upsert(chunks, embeddings)
+    report = ingest_paths(paths, s, store)
+    if report.failed:
+        log.warning("Skipped: %s", ", ".join(report.failed))
+    log.info(
+        "%d file(s), %d pages -> %d chunks (size=%d, overlap=%d)",
+        len(report.files), report.pages, report.chunks, s.chunk_size, s.chunk_overlap,
+    )
     log.info("Done in %.1fs. Collection now holds %d chunks.", time.perf_counter() - t0, store.count())
 
 
