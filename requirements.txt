@@ -7,6 +7,9 @@ chromadb>=0.5
 pydantic-settings>=2.3
 python-dotenv>=1.0
 
+# Day 3: keyword search for hybrid retrieval
+rank-bm25>=0.2.2
+
 # Dev
 pytest>=8.0
 ruff>=0.5

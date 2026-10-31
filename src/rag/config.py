@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     top_k: int = 5
 
+    # Day 3: hybrid search + re-ranking
+    candidate_k: int = 20  # candidates fetched from each retriever before fusing/re-ranking
+    rrf_k: int = 60  # RRF damping constant
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
     groq_api_key: str = ""
     google_api_key: str = ""
 

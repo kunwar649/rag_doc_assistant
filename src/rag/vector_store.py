@@ -40,8 +40,18 @@ class VectorStore:
         )
         return [
             # Chroma returns cosine *distance*; convert to similarity.
-            SearchResult(text=doc, metadata=meta, score=1 - dist)
-            for doc, meta, dist in zip(res["documents"][0], res["metadatas"][0], res["distances"][0])
+            SearchResult(text=doc, metadata=meta, score=1 - dist, id=cid)
+            for cid, doc, meta, dist in zip(
+                res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0]
+            )
+        ]
+
+    def all_chunks(self) -> list[Chunk]:
+        """Every stored chunk; used to build the BM25 keyword index."""
+        res = self.collection.get(include=["documents", "metadatas"])
+        return [
+            Chunk(id=cid, text=doc, metadata=meta)
+            for cid, doc, meta in zip(res["ids"], res["documents"], res["metadatas"])
         ]
 
     def count(self) -> int:
