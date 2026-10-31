@@ -12,7 +12,7 @@ Built entirely on free tools: local embeddings and re-ranker, embedded vector DB
 INGEST (scripts/ingest.py, POST /upload)
 data/docs/*.pdf|docx|txt|md
    → loaders.py      extract text, keep {source, page}, strip repeated PDF headers/footers
-   → chunking.py     recursive split (1000 chars, 150 overlap), deterministic IDs
+   → chunking.py     recursive split (500 chars, 80 overlap), deterministic IDs
    → embeddings.py   bge-small-en-v1.5 (local CPU), normalized vectors
    → vector_store.py ChromaDB (persistent, cosine / HNSW)
 
@@ -135,7 +135,7 @@ Some remaining "misses" are label strictness: the answer also appears on another
 
 | Decision | Why |
 |---|---|
-| Recursive splitter, 1000 chars / 150 overlap | Breaks at paragraph → sentence → word boundaries; overlap keeps context that spans a cut. |
+| Recursive splitter, 500 chars / 80 overlap | Breaks at paragraph → sentence → word boundaries; overlap keeps context that spans a cut. |
 | Page-level metadata on every chunk | Enables citations ("handbook.pdf, p. 4") and per-file filtering. |
 | Strip repeated PDF headers/footers | Running headers ("Report \| Page 7") were in every chunk, adding noise and making unrelated chunks look alike. Only edge lines repeated on ≥50% of pages are removed. |
 | Deterministic chunk IDs (SHA-256) | Re-ingesting is idempotent — upserts overwrite instead of duplicating. |
