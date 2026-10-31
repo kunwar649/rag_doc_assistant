@@ -82,3 +82,18 @@ def test_upload_rejects_bad_type_size_and_empty_text(setup):
     resp = client.post("/upload", files={"file": ("empty.txt", b"   ", "text/plain")})
     assert resp.status_code == 422
     assert not (settings.docs_dir / "empty.txt").exists()  # removed when nothing was extracted
+
+
+def test_config(setup):
+    client, *_ = setup
+    body = client.get("/config").json()
+    assert body["top_k"] == 5 and body["max_upload_mb"] == 1 and ".pdf" in body["extensions"]
+
+
+def test_cors_allows_frontend_origin(setup):
+    client, *_ = setup
+    resp = client.options("/ask", headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST",
+                                           "Access-Control-Request-Headers": "content-type"})
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    other = client.get("/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in other.headers

@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     llm_timeout: float = 60.0
     history_turns: int = 4  # previous question/answer pairs used for follow-ups
     max_upload_mb: int = 20
+    # Browser apps allowed to call the API (comma-separated). The Next.js dev server runs on :3000.
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Day 5: optional Langfuse tracing (leave keys empty to disable).
     # EU cloud: https://cloud.langfuse.com   US cloud: https://us.cloud.langfuse.com

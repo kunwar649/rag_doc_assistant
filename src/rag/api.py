@@ -7,6 +7,7 @@ Then open http://127.0.0.1:8000/docs for interactive API docs.
 Endpoints
     GET  /health      liveness check (doesn't load models)
     GET  /documents   ingested files and chunk count
+    GET  /config      defaults the frontend needs (top_k, upload limit, tracing on/off)
     POST /ask         answer a question (JSON, or Server-Sent Events with "stream": true)
     POST /upload      add a PDF/DOCX/TXT/MD file and index it
 """
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -69,7 +71,14 @@ def create_app(settings: Settings | None = None, pipeline_factory: Callable | No
                ingest_fn: Callable | None = None) -> FastAPI:
     """Factories are injectable so tests can run without models or API keys."""
     settings = settings or get_settings()
-    app = FastAPI(title="RAG Document Assistant", version="0.4.0")
+    app = FastAPI(title="RAG Document Assistant", version="0.6.0")
+    # The Next.js frontend runs on another port, so the browser needs CORS permission.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
     lock = threading.Lock()
     state: dict = {}
 
@@ -106,6 +115,15 @@ def create_app(settings: Settings | None = None, pipeline_factory: Callable | No
         store = get_pipeline().retriever.store
         return {"documents": store.list_sources(), "chunks": store.count()}
 
+    @app.get("/config")
+    def config():
+        return {
+            "top_k": settings.top_k,
+            "max_upload_mb": settings.max_upload_mb,
+            "extensions": sorted(SUPPORTED_EXTENSIONS),
+            "tracing": bool(settings.langfuse_public_key and settings.langfuse_secret_key),
+        }
+
     @app.post("/ask", response_model=AskResponse)
     def ask(req: AskRequest):
         pipeline = get_pipeline()
@@ -114,7 +132,9 @@ def create_app(settings: Settings | None = None, pipeline_factory: Callable | No
 
         if req.stream:
             events = (_sse(e) for e in pipeline.stream(req.question, **kwargs))
-            return StreamingResponse(events, media_type="text/event-stream")
+            # no-cache / no-buffering so proxies deliver tokens as they're generated
+            return StreamingResponse(events, media_type="text/event-stream",
+                                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
         try:
             result = pipeline.answer(req.question, **kwargs)

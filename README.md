@@ -3,7 +3,7 @@
 Chat with your documents (PDF, DOCX, TXT, MD) and get grounded answers with citations.
 Built entirely on free tools: local embeddings and re-ranker, embedded vector DB, free-tier LLMs.
 
-> **Status:** Day 5 complete — Streamlit chat UI with clickable sources, Langfuse tracing, token usage.
+> **Status:** Day 5 complete — Next.js frontend with an evidence pane, Streamlit UI, Langfuse tracing, token usage.
 > Next: answer-quality evaluation with RAGAS (Day 6).
 
 ## Architecture
@@ -25,6 +25,7 @@ question + history
    → LLM: Groq (gpt-oss-20b) ──fails?──► Gemini (fallback)
    → answer with [n] citations, cited sources, provider, latency, token usage
 
+WEB (frontend/)    Next.js + React → POST /ask (SSE) → streamed answer, citations open the evidence pane
 UI (app.py)        Streamlit chat → pipeline.stream() → streamed answer + expandable sources
 TRACING (tracing.py)  rag-query ─┬─ rewrite (generation, follow-ups only)
                                  ├─ retrieve (span: query → pages + scores)
@@ -59,7 +60,8 @@ rag-doc-assistant/
 │   ├── query.py           # retrieval only, single mode or --compare
 │   ├── ask.py             # terminal chat with streamed, cited answers
 │   └── eval_retrieval.py  # score every retrieval mode against golden questions
-├── app.py                 # Streamlit chat UI
+├── frontend/              # Next.js + React + TypeScript web app (see frontend/README.md)
+├── app.py                 # Streamlit chat UI (quick alternative to the web app)
 ├── .streamlit/config.toml # upload limit, hidden dev toolbar
 ├── tests/                 # pytest: unit, API and Streamlit app tests (fake LLM, no keys needed)
 ├── data/docs/             # put your documents here
@@ -95,7 +97,11 @@ get a "model not found / decommissioned" error, pick a current model from the pr
 # 1. Index documents in data/docs/
 python scripts/ingest.py --reset
 
-# 2. Chat in the browser (opens http://localhost:8501)
+# 2. Web app: start the API, then the Next.js frontend (needs Node.js 20.9+)
+uvicorn rag.api:app --app-dir src --reload --reload-dir src   # terminal 1
+cd frontend && npm install && npm run dev           # terminal 2 → http://localhost:3000
+
+# Or the Streamlit UI in one command (http://localhost:8501)
 streamlit run app.py
 
 # Or ask in the terminal (streamed answer + cited sources)
@@ -103,7 +109,7 @@ python scripts/ask.py "What does exit code 2 mean?"
 python scripts/ask.py                     # chat; follow-ups like "what about its timeout?" work
 
 # 3. Run the API, then open http://127.0.0.1:8000/docs
-uvicorn rag.api:app --app-dir src --reload
+uvicorn rag.api:app --app-dir src --reload --reload-dir src
 
 # Retrieval only / evaluation
 python scripts/query.py "utf-8-sig" --compare
@@ -112,6 +118,7 @@ python scripts/eval_retrieval.py --show-misses
 # Tests and lint (no API key or model download needed)
 pytest -q
 ruff check .
+cd frontend && npm test && npm run lint
 ```
 
 ## API
@@ -120,8 +127,11 @@ ruff check .
 |---|---|---|
 | GET | `/health` | Liveness check (doesn't load models) |
 | GET | `/documents` | Ingested files and chunk count |
+| GET | `/config` | Defaults the frontend needs: `top_k`, upload limit, file types, tracing on/off |
 | POST | `/ask` | Answer a question. Body: `question`, optional `history`, `mode`, `top_k`, `source`, `stream` |
 | POST | `/upload` | Upload a PDF/DOCX/TXT/MD file; it's saved and indexed immediately |
+
+CORS is enabled for the origins in `CORS_ORIGINS` (default: the Next.js dev server on port 3000).
 
 `/ask` returns JSON (`answer`, `sources`, `cited`, `query`, `provider`, `latency_ms`), or with
 `"stream": true` a Server-Sent Events stream: one `sources` event, many `token` events, then `done`
@@ -144,8 +154,7 @@ curl -X POST http://127.0.0.1:8000/ask -H "Content-Type: application/json" \
 | **rerank** | **0.93** | **1.00** | **0.96** | 982 |
 
 Re-ranking raised exact-term hit@1 from 0.43 (vector only) to 0.86 and meaning-based hit@1 from 0.71 to 0.95,
-with the correct chunk in the top 5 for every question. 
-BM25 scores as well as re-ranking here partly because
+with the correct chunk in the top 5 for every question. BM25 scores as well as re-ranking here partly because
 the questions reuse the documents' wording; re-ranking is the safer default for real users' phrasing.
 
 ## Design decisions (interview talking points)
@@ -174,6 +183,11 @@ the questions reuse the documents' wording; re-ranking is the safer default for 
 | Tracing per step (Langfuse) | Shows where time and tokens go (rewrite vs retrieval vs generation) for each question. |
 | Tracing can't break answers | All SDK calls are wrapped; if Langfuse is down, misconfigured or changes its API, the app keeps answering. |
 | Explicit spans, not context managers | FastAPI streams from worker threads, where thread-local "current span" state is lost. |
+| Next.js frontend over the same API | The browser streams `/ask` with fetch + ReadableStream (EventSource can't POST) and parses SSE itself; the Python pipeline is unchanged. |
+| Evidence pane | The product's job is trustworthy answers, so checking a claim is one click: citations open the passage, highlighted, beside the answer. |
+| Browser-only render for the chat | Saved history lives in localStorage; rendering it only in the browser avoids server/browser mismatches. |
+| CORS allow-list, not `*` | Only the configured frontend origins can call the API from a browser. |
+| Fonts bundled from npm | No runtime or build-time requests to Google Fonts; works offline and behind strict networks. |
 | Token usage captured from streams | Groq reports usage on the last chunk (`x_groq.usage`); it's shown in the UI and sent to Langfuse for cost tracking. |
 
 ## Known limitations (to address later)

@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Light theme: sage-grey paper, deep ink, teal actions, and a
+ * highlighter yellow reserved for citations and the passage they point to.
+ */
+:root {
+  --paper: #eef1ec;
+  --panel: #fbfcfa;
+  --ink: #1f2a2e;
+  --muted: #5d6b6f;
+  --line: #d5dbd4;
+  --teal: #2f5d62;
+  --teal-ink: #ffffff;
+  --mark: #f2d45c;
+  --mark-soft: #f8e9a6;
+  --mark-ink: #1f2a2e; /* text on the bright highlight, in both themes */
+  --danger: #a3361f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #151b1d;
+    --panel: #1d2427;
+    --ink: #e4e9e6;
+    --muted: #9aa7a9;
+    --line: #2f3a3d;
+    --teal: #6fa8ae;
+    --teal-ink: #0f1a1c;
+    --mark: #c9a93a;
+    --mark-soft: #4a4224;
+    --mark-ink: #1a1608;
+    --danger: #e0846d;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-teal: var(--teal);
+  --color-teal-ink: var(--teal-ink);
+  --color-mark: var(--mark);
+  --color-mark-soft: var(--mark-soft);
+  --color-danger: var(--danger);
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Literata Variable", ui-serif, Georgia, serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The question box shows focus on its container border instead of a second outline. */
+:focus-visible:not(textarea) {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Answer text: a serif set for reading, kept under ~70 characters per line. */
+.answer {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  max-width: 68ch;
+}
+.answer p + p,
+.answer ul,
+.answer ol {
+  margin-top: 0.75em;
+}
+.answer ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+.answer ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+}
+.answer code {
+  font-size: 0.88em;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+.answer strong {
+  font-weight: 650;
+}
+
+/* A citation looks like a highlighter mark on the number. */
+.cite {
+  font-family: var(--font-sans);
+  font-size: 0.72em;
+  font-weight: 600;
+  vertical-align: 0.35em;
+  line-height: 1;
+  margin: 0 0.1em;
+  padding: 0.18em 0.42em;
+  border-radius: 3px;
+  background: var(--mark-soft);
+  color: var(--ink);
+  cursor: pointer;
+}
+.cite:hover,
+.cite[aria-pressed="true"] {
+  background: var(--mark);
+  color: var(--mark-ink);
+}
+
+/* The selected passage is "highlighted" line by line, like marker on paper. */
+.passage-marked {
+  background: linear-gradient(transparent 8%, var(--mark-soft) 8%, var(--mark-soft) 92%, transparent 92%);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 0.15em;
+}
+
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--teal);
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

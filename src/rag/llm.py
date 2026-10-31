@@ -25,6 +25,22 @@ class LLMUnavailableError(RuntimeError):
     """Every configured provider failed."""
 
 
+# Some models (gpt-oss in particular) write "exit code 2" with a narrow no-break space
+# and "re‑rank" with a non-breaking hyphen. Many fonts lack those glyphs, so the space
+# renders as nothing ("code2"). Each is a single character, so replacing per streamed token is safe.
+_TYPOGRAPHY = str.maketrans({
+    " ": " ",  # narrow no-break space
+    " ": " ",  # no-break space
+    " ": " ",  # figure space
+    " ": " ",  # thin space
+    "‑": "-",  # non-breaking hyphen
+})
+
+
+def clean_text(text: str) -> str:
+    return text.translate(_TYPOGRAPHY)
+
+
 def _get(obj, key):
     return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
 
@@ -104,7 +120,7 @@ class LLMClient:
                 resp = self._request(p, messages, stream=False)
                 self.last_provider = f"{p.name}:{p.model}"
                 self.last_usage = _usage(getattr(resp, "usage", None))
-                return (resp.choices[0].message.content or "").strip()
+                return clean_text(resp.choices[0].message.content or "").strip()
             except OpenAIError as e:
                 logger.warning("%s (%s) failed: %s", p.name, p.model, e)
                 errors.append(f"{p.name}: {e}")
@@ -124,6 +140,7 @@ class LLMClient:
                         continue
                     text = chunk.choices[0].delta.content  # None for reasoning/role-only chunks
                     if text:
+                        text = clean_text(text)
                         if not started:
                             started = True
                             self.last_provider = f"{p.name}:{p.model}"

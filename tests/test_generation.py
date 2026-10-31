@@ -116,3 +116,12 @@ def test_stream_event_order():
 def test_stream_reports_error_event():
     events = list(_pipeline(llm=LLMClient([Provider("bad", "m", fake_client(connection_error()))])).stream("q"))
     assert [e["type"] for e in events] == ["sources", "error"]
+
+
+def test_special_spaces_and_hyphens_are_normalized():
+    from rag.llm import clean_text
+
+    assert clean_text("exit code 2 and re‑rank now") == "exit code 2 and re-rank now"
+    llm = LLMClient([Provider("p", "m", fake_client("x", tokens=["Exit code ", "2 means [1]."]))])
+    assert "".join(llm.stream([])) == "Exit code 2 means [1]."
+    assert _llm("code 0").complete([]) == "code 0"
